@@ -1,0 +1,54 @@
+alias: "MeshCore Bot: Quién es quién (.quien)"
+triggers:
+  - event_type: meshcore_raw_event
+    event_data:
+      event_type: EventType.RX_LOG_DATA
+    trigger: event
+conditions:
+  - condition: template
+    value_template: "{{ trigger.event.data.payload.decrypted.channel_idx == 6 }}"
+  - condition: template
+    value_template: >
+      {# Buscamos .quien en cualquier parte del mensaje por si viene con el
+      nombre delante #} {{ '.quien' in trigger.event.data.payload.decrypted.text
+      | lower }}
+actions:
+  - delay:
+      seconds: 1
+  - action: meshcore.send_channel_message
+    data:
+      channel_idx: 6
+      message: >
+        {% set texto_bruto = trigger.event.data.payload.decrypted.text |
+        default('') %} {# Limpiamos el nombre del remitente si existe (ej:
+        "Nombre: .quien 05") #} {% set mensaje = texto_bruto.split(': ')[1] if
+        ': ' in texto_bruto else texto_bruto %} {% set mensaje = mensaje | lower
+        | trim %}
+
+        {# Extraemos el byte después de la palabra .quien #} {% set partes =
+        mensaje.split('.quien ') %} {% set resto = partes[1] if partes | length
+        > 1 else '' %} {% set byte_buscado = resto.split(' ')[0] | trim %}
+
+        {% if byte_buscado == '' %}
+          No me has usado bien, vuelve a intentarlo poniendo el byte.
+        {% else %}
+          {% set ns = namespace(encontrado=false, nombre='', hora='') %}
+          
+          {% for estado in states.binary_sensor %}
+            {% if estado.entity_id.startswith('binary_sensor.meshcore_') and estado.entity_id.endswith('_contact') %}
+              {% set pk = estado.entity_id.split('_')[-2] %}
+              {% if pk.startswith(byte_buscado) %}
+                {% set ns.encontrado = true %}
+                {% set ns.nombre = estado.name | replace(' (Repeater)', '') | replace(' (Client)', '') | trim %}
+                {% set ns.hora = as_timestamp(estado.last_changed) | timestamp_custom('%H:%M') %}
+              {% endif %}
+            {% endif %}
+          {% endfor %}
+          
+          {% if ns.encontrado %}
+            {{ byte_buscado }} es "{{ ns.nombre }}". Visto: {{ ns.hora }}.
+          {% else %}
+            No conozco el byte {{ byte_buscado }}.
+          {% endif %}
+        {% endif %}
+mode: single
