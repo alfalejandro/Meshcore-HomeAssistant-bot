@@ -1,0 +1,63 @@
+alias: "MeshCore Bot: Respuesta a Ping/Test (Canal 6 Dinámico)"
+triggers:
+  - event_type: meshcore_raw_event
+    event_data:
+      event_type: EventType.RX_LOG_DATA
+    trigger: event
+conditions:
+  - condition: template
+    value_template: "{{ trigger.event.data.payload.decrypted.channel_idx == 6 }}"
+  - condition: template
+    value_template: >
+      {% set texto = trigger.event.data.payload.decrypted.text | default('') |
+      lower %}  {{ '.ping' in texto or '.test' in texto }}
+actions:
+  - delay:
+      seconds: 1
+  - action: meshcore.send_channel_message
+    data:
+      channel_idx: 6
+      message: >
+        {% set msj_completo = trigger.event.data.payload.decrypted.text |
+        default('') %}  {% set remitente = msj_completo.split(':')[0] if ':' in
+        msj_completo else 'Nodo' %}  {% set saltos =
+        trigger.event.data.payload.path_len %}
+
+        {# --- CÁLCULO DE LATENCIA --- #} {% set t_envio =
+        trigger.event.data.payload.sender_timestamp | int(0) %} {% set
+        t_recepcion = trigger.event.data.payload.recv_time | int(0) %} {% set
+        latencia = t_recepcion - t_envio %}
+
+        {# --- BÚSQUEDA DINÁMICA POR ENTITY_ID --- #}  {% set ruta_bytes =
+        trigger.event.data.payload.parsed.path_nodes %}  {% set ns =
+        namespace(ruta_final=[]) %}
+
+        {% for byte in ruta_bytes %}
+          {# Por defecto, dejamos el byte corto si el nodo es desconocido #}
+          {% set ns.nombre_nodo = byte %} 
+          
+          {# Escaneamos TODOS los sensores binarios #}
+          {% for estado in states.binary_sensor %}
+            {% set eid = estado.entity_id %}
+            
+            {# Filtramos solo los que son de contactos de meshcore #}
+            {% if eid.startswith('binary_sensor.meshcore_') and eid.endswith('_contact') %}
+              
+              {# Cortamos el entity_id por los guiones bajos y pillamos el penúltimo trozo (la public key) #}
+              {% set public_key_snippet = eid.split('_')[-2] %}
+              
+              {# Comparamos si ese trozo empieza por nuestro byte #}
+              {% if public_key_snippet.startswith(byte | lower) %}
+                {# ¡Match! Cogemos el nombre amigable y le limpiamos las etiquetas #}
+                {% set ns.nombre_nodo = estado.name | replace(' (Repeater)', '') | replace(' (Client)', '') | trim %}
+              {% endif %}
+              
+            {% endif %}
+          {% endfor %}
+          
+          {% set ns.ruta_final = ns.ruta_final + [ns.nombre_nodo] %}
+        {% endfor %}
+
+        {% set ruta = ns.ruta_final | join(' -> ') %} @[{{ remitente }}] Hops:
+        {{ saltos }} Ruta: [{{ ruta }}] ⏱️ {{ latencia }}s
+mode: single
