@@ -1,1 +1,24 @@
+#.help# Para saber qué comandos le podemos mandar.
 
+alias: "MeshCore Bot: Ayuda (.help)"
+description: ""
+triggers:
+  - event_type: meshcore_raw_event
+    event_data:
+      event_type: EventType.RX_LOG_DATA
+    trigger: event
+conditions:
+  - condition: template
+    value_template: "{{ trigger.event.data.payload.decrypted.channel_idx == 6 }}"
+  - condition: template
+    value_template: |
+      {{ '.help' in trigger.event.data.payload.decrypted.text | lower }}
+actions:
+  - delay:
+      seconds: 1
+  - action: meshcore.send_channel_message
+    data:
+      channel_idx: 6
+      message: |
+        Comandos: .ping (ruta y latencia), .quien [byte] (info nodo).
+mode: single
