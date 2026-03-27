@@ -11,7 +11,7 @@ Este repositorio contiene la configuración de **Home Assistant** para el bot co
 
 ## 🛠️ Comandos Disponibles
 * `.help`: Resumen de acciones 
-* `.ping o .test`: Test de latencia y ruta.
+* `.ping o .test`: Info de latencia y ruta.
 * `.quien [byte]`: Identifica un nodo por su ID de ruta.
 
 ( < 133 caracteres).
