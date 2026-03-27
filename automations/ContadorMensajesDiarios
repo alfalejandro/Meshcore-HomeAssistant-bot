@@ -1,0 +1,12 @@
+alias: "MeshCore: Contador de Mensajes Diario"
+description: ""
+triggers:
+  - event_type: meshcore_raw_event
+    event_data:
+      event_type: EventType.RX_LOG_DATA
+    trigger: event
+actions:
+  - action: input_number.increment
+    target:
+      entity_id: input_number.mesh_mensajes_dia
+mode: parallel
