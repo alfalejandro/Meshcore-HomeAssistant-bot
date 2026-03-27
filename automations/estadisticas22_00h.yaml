@@ -1,0 +1,46 @@
+# Incrementar contador de mensajes
+- alias: "MeshCore: Contador Mensajes"
+  trigger:
+    - platform: event
+      event_type: meshcore_raw_event
+  action:
+    - action: input_number.increment
+      target:
+        entity_id: input_number.mesh_mensajes_dia
+
+# Incrementar contador de nodos nuevos
+- alias: "MeshCore: Contador Nodos Nuevos"
+  trigger:
+    - platform: event
+      event_type: entity_registry_updated
+      event_data:
+        action: create
+  condition:
+    - condition: template
+      value_template: "{{ trigger.event.data.entity_id.startswith('binary_sensor.meshcore_') }}"
+  action:
+    - action: input_number.increment
+      target:
+        entity_id: input_number.mesh_nodos_nuevos_dia
+
+# Reporte de las 22:00h
+- alias: "MeshCore Bot: Reporte 22h"
+  trigger:
+    - platform: time
+      at: "22:00:00"
+  action:
+    - delay: "00:00:01"
+    - action: meshcore.send_channel_message
+      data:
+        channel_idx: 6
+        message: >
+          {% set msjs = states('input_number.mesh_mensajes_dia') | int %}
+          {% set nuevos = states('input_number.mesh_nodos_nuevos_dia') | int %}
+          📊 [Reporte Montgat] Tráfico hoy: {{ msjs }} msjs. Nodos nuevos: {{ nuevos }}. ¡73!
+    - action: input_number.set_value
+      target:
+        entity_id: 
+          - input_number.mesh_mensajes_dia
+          - input_number.mesh_nodos_nuevos_dia
+      data:
+        value: 0
