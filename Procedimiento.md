@@ -42,13 +42,11 @@ El bot necesita "memoria" para las estadísticas. Ve a Ajustes > Ayudantes y cre
 
 5. Configurar el Código del Bot
 
-    Abre tu archivo automations.yaml (puedes usar el complemento File Editor o VS Code).
+    En Automatizaciones y escenas, entra en la pestaña de Automatizaciones.
 
-    Copia y pega el código de este repositorio.
+    Crea diferentes automatizaciones para cada función. Copia y pega el código de las diferentes funciones de la carpeta Automations de este repositorio. 
 
     Importante: Revisa que el channel_idx sea el que uses para datos en tu zona.
-
-    Guarda y pulsa en Herramientas para desarrolladores > YAML > Automatizaciones para recargar los cambios sin reiniciar.
 
 ⚠️ Notas de Seguridad
 
