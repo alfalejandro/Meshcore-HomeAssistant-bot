@@ -1,0 +1,34 @@
+alias: "MeshCore Bot: Alerta de Batería Baja"
+description: ""
+triggers:
+  - event_type: state_changed
+    trigger: event
+conditions:
+  - condition: template
+    value_template: >
+      {{ trigger.event.data.entity_id.startswith('sensor.meshcore_') and
+      'battery' in trigger.event.data.entity_id }}
+  - condition: template
+    value_template: >
+      {% set old = trigger.event.data.old_state.state | default('100') %} {% set
+      new = trigger.event.data.new_state.state | default('100') %} {#
+      Verificamos que sean números reales para evitar errores si un nodo se
+      desconecta (unavailable) #} {% if old | is_number and new | is_number %}
+        {{ new | int <= 30 and old | int > 30 }}
+      {% else %}
+        false
+      {% endif %}
+actions:
+  - action: meshcore.send_channel_message
+    data:
+      channel_idx: 6
+      message: >
+        {% set bateria = trigger.event.data.new_state.state %} {# Cogemos el
+        nombre del sensor y le limpiamos la coletilla de "Battery" #} {% set
+        nombre = trigger.event.data.new_state.name | replace(' Battery
+        Percentage', '') | replace(' Battery', '') | replace(' Batería', '') |
+        trim %}
+
+        ⚠️ [Alerta] El nodo "{{ nombre }}" ha bajado al {{ bateria }}% de
+        batería.
+mode: parallel
