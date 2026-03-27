@@ -1,0 +1,15 @@
+alias: "MeshCore: Contador de Nodos Nuevos"
+description: ""
+triggers:
+  - trigger: event
+    event_type: entity_registry_updated
+    event_data:
+      action: create
+conditions:
+  - condition: template
+    value_template: "{{ trigger.event.data.entity_id.startswith('binary_sensor.meshcore_') }}"
+actions:
+  - action: input_number.increment
+    target:
+      entity_id: input_number.mesh_nodos_nuevos_dia
+mode: parallel
