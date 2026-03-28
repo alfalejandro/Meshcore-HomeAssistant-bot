@@ -1,0 +1,78 @@
+alias: "MeshCore Bot: Distancia por Atributos (.distancia)"
+triggers:
+  - event_type: meshcore_raw_event
+    event_data:
+      event_type: EventType.RX_LOG_DATA
+    trigger: event
+conditions:
+  - condition: template
+    value_template: "{{ trigger.event.data.payload.decrypted.channel_idx == 6 }}"
+  - condition: template
+    value_template: "{{ '.distancia' in trigger.event.data.payload.decrypted.text | lower }}"
+actions:
+  - delay:
+      seconds: 1
+  - action: meshcore.send_channel_message
+    data:
+      channel_idx: 6
+      message: >
+        {% set ruta_bytes = trigger.event.data.payload.parsed.path_nodes |
+        default([]) %}
+
+        {% if ruta_bytes | length > 0 %}
+          {# 1. El primer nodo de la ruta es el que envía el mensaje #}
+          {% set byte_origen = ruta_bytes[0] | lower %}
+          
+          {# --- IMPORTANTE: Pon aquí el byte de TU nodo base --- #}
+          {% set byte_base = '69' %} 
+          
+          {# Añadimos nom_base al namespace para guardar el nombre del nodo local #}
+          {% set ns = namespace(lat_orig=none, lon_orig=none, lat_base=none, lon_base=none, nom_orig='', nom_base='') %}
+          
+          {# 2. Escaneamos los binary_sensor #}
+          {% for estado in states.binary_sensor %}
+            {% set eid = estado.entity_id %}
+            
+            {% if eid.startswith('binary_sensor.meshcore_') and eid.endswith('_contact') %}
+              {% set public_key_snippet = eid.split('_')[-2] %}
+              
+              {# ¿Es el nodo que pregunta? #}
+              {% if public_key_snippet.startswith(byte_origen) %}
+                {% set ns.lat_orig = state_attr(eid, 'latitude') %}
+                {% set ns.lon_orig = state_attr(eid, 'longitude') %}
+                {% set ns.nom_orig = estado.name | replace(' (Repeater)', '') | replace(' (Client)', '') | trim %}
+              {% endif %}
+              
+              {# ¿Es nuestro nodo base? Extraemos también su nombre #}
+              {% if public_key_snippet.startswith(byte_base) %}
+                {% set ns.lat_base = state_attr(eid, 'latitude') %}
+                {% set ns.lon_base = state_attr(eid, 'longitude') %}
+                {% set ns.nom_base = estado.name | replace(' (Repeater)', '') | replace(' (Client)', '') | trim %}
+              {% endif %}
+              
+            {% endif %}
+          {% endfor %}
+          
+          {# 3. Si tenemos ambas coordenadas, calculamos la distancia #}
+          {% if ns.lat_orig != none and ns.lat_base != none %}
+            {% set lat_orig = ns.lat_orig | float %}
+            {% set lon_orig = ns.lon_orig | float %}
+            {% set lat_base = ns.lat_base | float %}
+            {% set lon_base = ns.lon_base | float %}
+            
+            {% set R = 6371 %}
+            {% set dLat = (lat_orig - lat_base) * (pi/180) %}
+            {% set dLon = (lon_orig - lon_base) * (pi/180) %}
+            {% set a = sin(dLat/2)**2 + cos(lat_base*(pi/180)) * cos(lat_orig*(pi/180)) * sin(dLon/2)**2 %}
+            {% set c = 2 * atan2(sqrt(a), sqrt(1-a)) %}
+            {% set dist = (R * c) | round(2) %}
+            
+            Distancia de "{{ ns.nom_orig }}" a "{{ ns.nom_base }}": {{ dist }} km en línea recta.
+          {% else %}
+            [Bot] Faltan coordenadas en los datos de [{{ byte_origen }}] o de [{{ byte_base }}].
+          {% endif %}
+          
+        {% else %}
+          [Bot] Error: No se pudo leer la ruta.
+        {% endif %}
+mode: single
