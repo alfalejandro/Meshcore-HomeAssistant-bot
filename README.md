@@ -10,6 +10,7 @@ Este repositorio contiene la configuración de **Home Assistant** para el bot co
 * `.help`: Resumen de acciones 
 * `.ping o .test`: Info de latencia y ruta.
 * `.quien [byte]`: Identifica un nodo por su ID de ruta.
+* `.meteo`: Informa de la predicción meteorologica cogiendo la ubicación del primer repetidor del nodo que manda el mensaje. 
 
 ( < 133 caracteres).
 
