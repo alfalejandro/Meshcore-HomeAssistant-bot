@@ -1,0 +1,64 @@
+alias: "MeshCore Bot: Clima Exacto del Nodo (.meteo)"
+triggers:
+  - event_type: meshcore_raw_event
+    event_data:
+      event_type: EventType.RX_LOG_DATA
+    trigger: event
+conditions:
+  - condition: template
+    value_template: "{{ trigger.event.data.payload.decrypted.channel_idx == 6 }}"
+  - condition: template
+    value_template: >
+      {% set texto = trigger.event.data.payload.decrypted.text | default('') |
+      lower %} {{ '.meteo' in texto }}
+actions:
+  - delay:
+      seconds: 1
+  - variables:
+      ruta_bytes: "{{ trigger.event.data.payload.parsed.path_nodes | default([]) }}"
+      byte_origen: "{{ ruta_bytes[0] | lower if ruta_bytes | length > 0 else 'null' }}"
+      eid_nodo: >
+        {% set ns = namespace(id='') %} {% for s in states.binary_sensor if
+        s.entity_id.startswith('binary_sensor.meshcore_') and
+        s.entity_id.endswith('_contact') %}
+          {% if s.entity_id.split('_')[-2].startswith(byte_origen) %}
+            {% set ns.id = s.entity_id %}
+          {% endif %}
+        {% endfor %} {{ ns.id }}
+      lat_nodo: "{{ state_attr(eid_nodo, 'latitude') | default('none', true) }}"
+      lon_nodo: "{{ state_attr(eid_nodo, 'longitude') | default('none', true) }}"
+      nom_nodo: |
+        {% if eid_nodo != '' %}
+          {{ states[eid_nodo].name | replace(' (Repeater)', '') | replace(' (Client)', '') | trim }}
+        {% else %}
+          Desconocido
+        {% endif %}
+  - if:
+      - condition: template
+        value_template: "{{ lat_nodo != 'none' and lat_nodo != '' and lat_nodo != null }}"
+    then:
+      - action: rest_command.meteo_dinamica
+        data:
+          lat: "{{ lat_nodo }}"
+          lon: "{{ lon_nodo }}"
+        response_variable: api_clima
+      - action: meshcore.send_channel_message
+        data:
+          channel_idx: 6
+          message: >
+            {% set temp = api_clima.content.current.temperature_2m | round(1) %}
+            {% set max = api_clima.content.daily.temperature_2m_max[0] |
+            round(1) %} {% set min =
+            api_clima.content.daily.temperature_2m_min[0] | round(1) %} {% set
+            lluvia = api_clima.content.daily.precipitation_probability_max[0] %}
+
+            [Meteo "{{ nom_nodo }}"] Act: {{ temp }}°C. Max {{ max }}°C / Min {{
+            min }}°C. Lluvia: {{ lluvia }}%.
+    else:
+      - action: meshcore.send_channel_message
+        data:
+          channel_idx: 6
+          message: >-
+            [Bot] "{{ nom_nodo }}", no puedo darte el clima porque no recibo tu
+            GPS.
+mode: single
